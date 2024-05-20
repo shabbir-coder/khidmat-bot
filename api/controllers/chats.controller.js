@@ -188,7 +188,7 @@ const recieveMessages = async (req, res)=>{
 
         console.log(fileName)
         sendMessageObj.type='media',
-        sendMessageObj.media_url= process.cwd() + fileName,
+        sendMessageObj.media_url= process.env.IMAGE_URL + fileName,
         sendMessageObj.filename = fileName.split('/').pop()
         const response =  await sendMessageFunc({...sendMessageObj, message: 'Report generated' });
         return res.send(true);

@@ -16,9 +16,9 @@ connectDB(); // Connect to MongoDB
 app.use(cors());
 app.use(bodyParser.json());
 
-app.get('',(req,res)=>{
-  res.send('Welcome to Backend')
-})
+// app.get('',(req,res)=>{
+//   res.send('Welcome to Backend')
+// })
 
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
