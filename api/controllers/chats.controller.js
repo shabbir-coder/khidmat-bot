@@ -168,10 +168,10 @@ const recieveMessages = async (req, res)=>{
         instance_id: messageObject?.instance_id,
       }
       
-      // if (!currentTime.isBetween(startingTime, endingTime)) {
-      //   const response =  await sendMessageFunc({...sendMessageObj,message: "Registrations are closed now" });
-      //   return res.send(true);      
-      // }
+      if (!currentTime.isBetween(startingTime, endingTime)) {
+        const response =  await sendMessageFunc({...sendMessageObj,message: "Registrations are closed now" });
+        return res.send(true);      
+      }
     
       let start = new Date();
       start.setHours(0,0,0,0);
@@ -406,7 +406,7 @@ const sendMessageFunc = async (message)=>{
   console.log(message)
   const url = process.env.LOGIN_CB_API
   const access_token = process.env.ACCESS_TOKEN_CB
-  // const response = await axios.get(`${url}/send`,{params:{...message,access_token}})
+  const response = await axios.get(`${url}/send`,{params:{...message,access_token}})
   // const response = 'message send'
   return true;
 }
