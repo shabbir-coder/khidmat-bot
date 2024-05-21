@@ -235,7 +235,7 @@ const recieveMessages = async (req, res)=>{
             const izanDate = new Date(ITSmatched.lastIzantaken)
             if( izanDate >= start && izanDate <= end){
               console.log('saving from here')
-              const response = await sendMessageFunc({...sendMessageObj,message:'Already registered ! Type cancel/change to update your venue' });
+              const response = await sendMessageFunc({...sendMessageObj,message:'Already registered. Type Change to edit the selected choice.' });
               return res.send(true)
             }
       
@@ -261,10 +261,10 @@ const recieveMessages = async (req, res)=>{
         const response =  await sendMessageFunc({...sendMessageObj,message: 'Incorrect ITS, Please enter valid ITS only' });
         return res.send(true)
       } else if (senderId.isVerified && /^\d{2,3}$/.test(message)){
-        const response =  await sendMessageFunc({...sendMessageObj,message: 'Enter only valid choice nos' });
+        const response =  await sendMessageFunc({...sendMessageObj,message: 'Incorrect ITS, Please enter valid ITS only' });
         return res.send(true)
       }  else if (senderId.isVerified && (message.match(/\n/g) || []).length !== 0){
-        const response =  await sendMessageFunc({...sendMessageObj,message: 'Invalid Input 1' });
+        const response =  await sendMessageFunc({...sendMessageObj,message: 'Invalid Input' });
         return res.send(true)
       } else {
         if(!senderId.isVerified) return res.send(true);
@@ -287,12 +287,12 @@ const recieveMessages = async (req, res)=>{
         const izanDate = new Date(requestedITS?.lastIzantaken)
 
         if( izanDate >= start && izanDate <= end && !['cancel','change'].includes(message.toLowerCase())){
-          if(latestChatLog.messageTrack==='venue' && venueNames.length < message.toLowerCase() 
-          || latestChatLog.messageTrack==='profile' && khidmatNames.length < message.toLowerCase()){
-            const response = await sendMessageFunc({...sendMessageObj,message:'Invalid Input 2' });
+          if((latestChatLog.messageTrack === 'venue' && (isNaN(message) || +message > venueNames.length)) ||
+          (latestChatLog.messageTrack === 'profile' && (isNaN(message) || +message > khidmatNames.length))){
+            const response = await sendMessageFunc({...sendMessageObj,message:'Invalid Input' });
             return res.send(true)    
           }
-          const response = await sendMessageFunc({...sendMessageObj,message:'Already registered ! Type cancel/change to update your venue' });
+          const response = await sendMessageFunc({...sendMessageObj,message:'Already registered. Type Change to edit the selected choice.' });
           return res.send(true)
         }
         if(['cancel','change'].includes(message.toLowerCase())){
@@ -327,9 +327,11 @@ const recieveMessages = async (req, res)=>{
           const response =  await sendMessageFunc({...sendMessageObj,message: activeSet?.ITSverificationMessage.replace('${name}', ITSmatched.name )});
           return res.send(true);
         }
-       
-        if(latestChatLog.messageTrack==='venue' && venueNames.length < message.toLowerCase() 
-          || latestChatLog.messageTrack==='profile' && khidmatNames.length < message.toLowerCase()){
+
+        if (
+          (latestChatLog.messageTrack === 'venue' && (isNaN(message) || +message > venueNames.length)) ||
+          (latestChatLog.messageTrack === 'profile' && (isNaN(message) || +message > khidmatNames.length))
+        ){
           const response = await sendMessageFunc({...sendMessageObj, message: 'Incorrect input. \nPlease enter corresponding number against each option only'} );
           return res.send(true);
         }
@@ -385,7 +387,7 @@ const recieveMessages = async (req, res)=>{
   
           return res.send(true);
         }
-        const response = await sendMessageFunc({...sendMessageObj,message:'Invalid Input 3' });
+        const response = await sendMessageFunc({...sendMessageObj,message:'Invalid Input' });
         return res.send(true);
       }
     }else{
