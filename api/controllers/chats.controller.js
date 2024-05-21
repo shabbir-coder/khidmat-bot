@@ -493,7 +493,7 @@ const getReport = async (req, res) => {
         ITS: '$ITS',
         Name: '$name',
         PhoneNumber: 1,
-        updatedAt: { $dateToString: { format: "%m %d %Y", date: '$chatlog.updatedAt' } },
+        updatedAt: { $dateToString: { format: "%d %m %Y", date: '$chatlog.updatedAt' } },
         Venue: '$chatlog.otherMessages.venue',
         Response: '$chatlog.otherMessages.profile'
       }
