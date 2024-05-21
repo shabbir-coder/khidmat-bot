@@ -235,7 +235,7 @@ const recieveMessages = async (req, res)=>{
             const izanDate = new Date(ITSmatched.lastIzantaken)
             if( izanDate >= start && izanDate <= end){
               console.log('saving from here')
-              const response = await sendMessageFunc({...sendMessageObj,message:'Already registered 1 ! Type cancel/change to update your venue' });
+              const response = await sendMessageFunc({...sendMessageObj,message:'Already registered ! Type cancel/change to update your venue' });
               return res.send(true)
             }
       
@@ -292,7 +292,7 @@ const recieveMessages = async (req, res)=>{
             const response = await sendMessageFunc({...sendMessageObj,message:'Invalid Input 2' });
             return res.send(true)    
           }
-          const response = await sendMessageFunc({...sendMessageObj,message:'Already registered 2 ! Type cancel/change to update your venue' });
+          const response = await sendMessageFunc({...sendMessageObj,message:'Already registered ! Type cancel/change to update your venue' });
           return res.send(true)
         }
         if(['cancel','change'].includes(message.toLowerCase())){
