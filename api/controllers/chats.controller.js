@@ -440,89 +440,6 @@ function getNames(step, number){
   }
 }
 
-const getReport1 = async (req, res)=>{
-  const { fromDate, toDate } = req.query;
-  
-  if (fromDate && toDate) {
-    startDate = new Date(fromDate);
-    endDate = new Date(toDate);
-}
-
-  let dateFilter = {};
-  if (startDate && endDate) { // If both startDate and endDate are defined, add a date range filter
-    dateFilter = {
-        "updatedAt": {
-            $gte: startDate,
-            $lt: endDate
-        }
-    };
-}
-
-  let query =[
-    {$match: { instance_id:req.params.id ,...dateFilter } },
-    {$lookup : {
-      from: 'contacts',
-      localField: 'requestedITS',
-      foreignField: 'ITS',
-      as: 'contact'
-    }},
-    {$lookup : {
-      from: 'instances',
-      localField: 'instance_id',
-      foreignField: 'instance_id',
-      as: 'instance'
-    }},
-    {$unwind:{
-      path: '$instance',
-      preserveNullAndEmptyArrays: true
-    }},
-    {$unwind:{
-      path: '$contact',
-      preserveNullAndEmptyArrays: true
-    }},
-    {
-      $addFields: {
-        PhoneNumber: { $toString: "$contact.number" }, // Convert to string
-      }
-    },
-    {
-      $project: {
-        _id: 0,
-        Name: '$contact.name',
-        PhoneNumber: 1,
-        ITS: '$requestedITS',
-        Time: '$updatedAt',
-        Venue: '$otherMessages.venue',
-        Response: '$otherMessages.profile',
-        updatedAt: { $dateToString: { format: "%m %d %Y", date: "$updatedAt" } },
-      }
-    }
-  ]
-  const data = await ChatLogs.aggregate(query);
-  console.log(data)
-  
-  const filePath = `uploads/reports/Report-${Date.now()}.csv`
-  const csvWriter = createCsvWriter({
-    path: filePath,
-    header: [
-      { id: 'Name', title: 'Name' },
-      { id: 'PhoneNumber', title: 'PhoneNumber', stringQuote: '"' },
-      { id: 'ITS', title: 'ITS' },
-      { id: 'updatedAt', title: 'Updated At' },
-      { id: 'Location', title: 'Venue' },
-      { id: 'Response', title: 'Response' },
-    ]
-  });
-
-  await csvWriter.writeRecords(data);
-
-  res.setHeader('Content-Type', 'text/csv');
-  res.setHeader('Content-Disposition', 'attachment; filename=report.csv');
-
-  const fileStream = fs.createReadStream(filePath);
-  fileStream.pipe(res);
-}
-
 const getReport = async (req, res) => {
   const { fromDate, toDate } = req.query;
   let startDate, endDate;
@@ -584,9 +501,12 @@ const getReport = async (req, res) => {
   ];
 
   try {
-    const data = await Contact.aggregate(query);
-
-    const filePath = `uploads/reports/Report-${Date.now()}.csv`;
+    let data = await Contact.aggregate(query);
+    data = data.map(ele=>({...ele,Venue:getNames('venue', ele?.Venue),
+      Response: getNames('profile', ele?.Response)
+    }))
+    const fileName = `Report-${Date.now()}.csv`
+    const filePath = `uploads/reports/${fileName}`;
     const csvWriter = createCsvWriter({
       path: filePath,
       header: [
@@ -599,10 +519,11 @@ const getReport = async (req, res) => {
       ]
     });
 
+    console.log('data',data)
     await csvWriter.writeRecords(data);
 
     res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', 'attachment; filename=report.csv');
+    res.setHeader('Content-Disposition', `attachment; filename=${fileName}`);
 
     const fileStream = fs.createReadStream(filePath);
     fileStream.pipe(res);
@@ -662,7 +583,7 @@ async function getReportdataByTime(startDate, endDate, id){
         Time: '$updatedAt',
         Venue: '$otherMessages.venue',
         Response: '$otherMessages.profile',
-        updatedAt: { $dateToString: { format: "%m %d %Y", date: "$updatedAt" } },
+        updatedAt: { $dateToString: { format: "%d %m %Y", date: "$updatedAt" } },
       }
     }
   ]
