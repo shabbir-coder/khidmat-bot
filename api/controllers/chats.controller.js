@@ -7,8 +7,13 @@ const createCsvWriter = require('csv-writer').createObjectCsvWriter;
 const fs = require('fs')
 const { getCachedData } = require('../middlewares/cache');
 const moment = require('moment-timezone');
-
+const handlebars = require('handlebars');
+const PDFDocument = require('pdfkit');
+const csv = require('csvtojson');
 const dataKey = 'activeSet';
+const xlsx = require('xlsx');
+const pdf = require('html-pdf');
+
 
 const saveContact = async(req, res)=>{
     try {
@@ -185,12 +190,12 @@ const recieveMessages = async (req, res)=>{
           return res.send(true);
         }
         const fileName = await getReportdataByTime(start,end, messageObject?.instance_id)
-
+        // const fileName = 'http://5.189.156.200:84/uploads/reports/Report-1716394369435.csv'
         console.log(fileName)
-        sendMessageObj.type='media',
-        sendMessageObj.media_url= process.env.IMAGE_URL + fileName,
-        sendMessageObj.filename = fileName.split('/').pop()
-        const response =  await sendMessageFunc({...sendMessageObj, message: 'Report generated' });
+        sendMessageObj.filename = fileName.split('/').pop();
+        sendMessageObj.media_url= process.cwd()+fileName;
+        sendMessageObj.type = 'media';
+        const response =  await sendMessageFunc({...sendMessageObj, message:'Download report'});
         return res.send(true);
       }
       
@@ -409,7 +414,6 @@ const sendMessageFunc = async (message)=>{
   const url = process.env.LOGIN_CB_API
   const access_token = process.env.ACCESS_TOKEN_CB
   const response = await axios.get(`${url}/send`,{params:{...message,access_token}})
-  // const response = 'message send'
   return true;
 }
 
@@ -539,6 +543,108 @@ async function getReportdataByTime(startDate, endDate, id){
   let dateFilter = {};
   if (startDate && endDate) { // If both startDate and endDate are defined, add a date range filter
     dateFilter = {
+      "updatedAt": {
+        $gte: startDate,
+        $lt: endDate
+      }
+    };
+  }
+
+  let query = [
+    {
+      $lookup: {
+        from: 'chatlogs',
+        let: { contactITS: '$ITS' },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $and: [
+                  { $eq: ['$requestedITS', '$$contactITS'] },
+                  { $eq: ['$instance_id', id] },
+                  { $gte: ['$updatedAt', startDate] },
+                  { $lt: ['$updatedAt', endDate] }
+                ]
+              }
+            }
+          }
+        ],
+        as: 'chatlog'
+      }
+    },
+    { $unwind: { path: '$chatlog', preserveNullAndEmptyArrays: true } },
+    {
+      $addFields: {
+        PhoneNumber: { $toString: '$number' }  // Assuming `number` is directly in contacts
+      }
+    },
+    {
+      $project: {
+        _id: 0,
+        ITS: '$ITS',
+        Name: '$name',
+        PhoneNumber: 1,
+        updatedAt: { $dateToString: { format: "%d %m %Y", date: '$chatlog.updatedAt' } },
+        Venue: '$chatlog.otherMessages.venue',
+        Response: '$chatlog.otherMessages.profile'
+      }
+    }
+  ];
+
+  try {
+    let data = await Contact.aggregate(query);
+    data = data.map(ele=>({...ele,Venue:getNames('venue', ele?.Venue),
+      Response: getNames('profile', ele?.Response)
+    }))
+
+    const pdfFilePath = `/uploads/reports/Report-${Date.now()}.pdf`;
+    await createPDF(data, pdfFilePath);
+    return pdfFilePath;
+
+  } catch (error) {
+    console.error(error);
+  }
+};
+
+
+async function createPDF(data, filePath) {
+  console.log('data',data)
+  console.log('filepath',filePath)
+ 
+  const templateSource = fs.readFileSync(`${process.cwd()}/uploads/reports/template.hbs`, 'utf8');
+  const template = handlebars.compile(templateSource);
+  // Register a helper to increment index
+  handlebars.registerHelper('inc', function(value, options) {
+    return parseInt(value) + 1;
+  });
+  const html = template({ records: data });
+       
+  const options = {
+    format: 'A4',
+    border: {
+      top: '15px',
+      right: '10px',
+      bottom: '15px',
+      left: '10px'
+    }
+  };
+  return new Promise((resolve, reject) => {
+    pdf.create(html, options).toFile(`${process.cwd()}${filePath}`, function (err, res) {
+      if (err) {
+        console.error(err);
+        return reject(err);
+      }
+      console.log('PDF created successfully');
+      resolve(res);
+    });
+  });
+}
+
+async function getReportdataByTime1(startDate, endDate, id){
+
+  let dateFilter = {};
+  if (startDate && endDate) { // If both startDate and endDate are defined, add a date range filter
+    dateFilter = {
         "updatedAt": {
             $gte: startDate,
             $lt: endDate
@@ -589,7 +695,8 @@ async function getReportdataByTime(startDate, endDate, id){
   ]
   const data = await ChatLogs.aggregate(query);
 
-  const filePath = `uploads/reports/Report-${Date.now()}.csv`
+  const filePath = `./download.csv`
+
   const csvWriter = createCsvWriter({
     path: filePath,
     header: [
@@ -603,8 +710,14 @@ async function getReportdataByTime(startDate, endDate, id){
   });
 
   await csvWriter.writeRecords(data);
+  
+  const jsonArray = await csv().fromFile(filePath);
+  const pdfFilePath = `uploads/reports/Report-${Date.now()}.pdf`;
+
+  await createPDF(jsonArray,pdfFilePath);
   return filePath ;
 }
+
 
 function isTimeInRange(startTime, endTime, timezoneOffset = 0) {
   // Get the current date/time in UTC

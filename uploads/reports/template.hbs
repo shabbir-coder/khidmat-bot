@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Report</title>
+  <style>
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      page-break-inside: auto;
+    }
+    table, th, td {
+      border: 1px solid black;
+    }
+    th, td {
+      padding: 8px;
+      text-align: left;
+    }
+    th {
+      background-color: #f2f2f2;
+    }
+    tr {
+      page-break-inside: avoid;
+      page-break-after: auto;
+    }
+  </style>
+</head>
+<body>
+  <h1>Report</h1>
+  <table>
+    <thead>
+      <tr>
+        <th>Index</th>
+        <th>Name</th>
+        <th>PhoneNumber</th>
+        <th>ITS</th>
+        <th>Updated At</th>
+        <th>Venue</th>
+        <th>Response</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{#each records}}
+      <tr>
+        <td>{{inc @index}}</td>
+        <td>{{Name}}</td>
+        <td>{{PhoneNumber}}</td>
+        <td>{{ITS}}</td>
+        <td>{{updatedAt}}</td>
+        <td>{{Venue}}</td>
+        <td>{{Response}}</td>
+      </tr>
+      {{/each}}
+    </tbody>
+  </table>
+</body>
+</html>
