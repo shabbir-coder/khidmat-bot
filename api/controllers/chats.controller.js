@@ -208,14 +208,14 @@ const recieveMessages = async (req, res)=>{
         const formattedStart = moment(activeSet?.StartingTime).format('DD-MM-YYYY');
         const formattedEnd = moment(activeSet?.EndingTime).format('DD-MM-YYYY');
 
-        let replyMessage = 'Statistics';
+        let replyMessage = '*Statistics*';
         replyMessage += '\n\n';
-        replyMessage += `\nStart of Campaign ${formattedStart}`;
-        replyMessage += `\nEnd of Campaign ${formattedEnd}`;
-        replyMessage += `\nTotal nos of entries ${replyObj?.totalEntries}`;
-        replyMessage += `\nTotal nos updated responses ${replyObj?.totalCompletedResponses}`;
-        replyMessage += `\nTotal nos of incomplete responses ${replyObj?.totalIncompleteResponses}`;
-        replyMessage += `\nTotal nos of unresponsive ${replyObj?.totalUnresponsiveContacts}`;
+        replyMessage += `\n● Start of Campaign *${formattedStart}*`;
+        replyMessage += `\n● End of Campaign *${formattedEnd}*`;
+        replyMessage += `\n● Total nos of entries *${replyObj?.totalEntries}*`;
+        replyMessage += `\n● Total nos updated responses *${replyObj?.totalCompletedResponses}*`;
+        replyMessage += `\n● Total nos of incomplete responses *${replyObj?.totalIncompleteResponses}*`;
+        replyMessage += `\n● Total nos of unresponsive *${replyObj?.totalUnresponsiveContacts}*`;
         
         const response = await sendMessageFunc({...sendMessageObj, message: replyMessage});
         return res.send(true);
@@ -436,7 +436,7 @@ const sendMessageFunc = async (message)=>{
   console.log(message)
   const url = process.env.LOGIN_CB_API
   const access_token = process.env.ACCESS_TOKEN_CB
-  // const response = await axios.get(`${url}/send`,{params:{...message,access_token}})
+  const response = await axios.get(`${url}/send`,{params:{...message,access_token}})
   return true;
 }
 
@@ -903,7 +903,7 @@ async function getStats1(instanceId, startDate, endDate) {
               { $count: "count" }
             ],
             totalIncompleteResponses: [
-              { $match: { messageTrack: { $in: ['venue', 'profile'] } }},
+              { $match: { messageTrack:  { $ne: 'submitted' } }},
               { $count: "count" }
             ]
           }
