@@ -197,6 +197,29 @@ const recieveMessages = async (req, res)=>{
         const response =  await sendMessageFunc({...sendMessageObj, message:'Download report'});
         return res.send(true);
       }
+
+      if(['stats','statitics'].includes(message.toLowerCase()) && senderId?.isAdmin){
+        if(!senderId?.isAdmin){
+          const response =  await sendMessageFunc({...sendMessageObj, message: 'Invalid Input' });
+          return res.send(true);
+        }
+
+        const replyObj = await getStats1(messageObject?.instance_id,'','');
+        const formattedStart = moment(activeSet?.StartingTime).format('DD-MM-YYYY');
+        const formattedEnd = moment(activeSet?.EndingTime).format('DD-MM-YYYY');
+
+        let replyMessage = 'Statistics';
+        replyMessage += '\n\n';
+        replyMessage += `\nStart of Campaign ${formattedStart}`;
+        replyMessage += `\nEnd of Campaign ${formattedEnd}`;
+        replyMessage += `\nTotal nos of entries ${replyObj?.totalEntries}`;
+        replyMessage += `\nTotal nos updated responses ${replyObj?.totalCompletedResponses}`;
+        replyMessage += `\nTotal nos of incomplete responses ${replyObj?.totalIncompleteResponses}`;
+        replyMessage += `\nTotal nos of unresponsive ${replyObj?.totalUnresponsiveContacts}`;
+        
+        const response = await sendMessageFunc({...sendMessageObj, message: replyMessage});
+        return res.send(true);
+      }
       
       if(!senderId) {
         if(message.toLowerCase() === activeSet?.EntryPoint.toLowerCase()){
@@ -237,6 +260,7 @@ const recieveMessages = async (req, res)=>{
         if(ITSmatched){
            
             const izanDate = new Date(ITSmatched.lastIzantaken)
+            console.log(izanDate >= start && izanDate <= end,{izanDate}, {start} , {end})
             if( izanDate >= start && izanDate <= end){
               console.log('saving from here')
               const response = await sendMessageFunc({...sendMessageObj,message:'Already registered. Type Change to edit the selected choice.' });
@@ -267,7 +291,7 @@ const recieveMessages = async (req, res)=>{
       } else if (senderId.isVerified && /^\d{2,3}$/.test(message)){
         const response =  await sendMessageFunc({...sendMessageObj,message: 'Incorrect ITS, Please enter valid ITS only' });
         return res.send(true)
-      }  else if (senderId.isVerified && (message.match(/\n/g) || []).length !== 0){
+      } else if (senderId.isVerified && (message.match(/\n/g) || []).length !== 0){
         const response =  await sendMessageFunc({...sendMessageObj,message: 'Invalid Input' });
         return res.send(true)
       } else {
@@ -412,7 +436,7 @@ const sendMessageFunc = async (message)=>{
   console.log(message)
   const url = process.env.LOGIN_CB_API
   const access_token = process.env.ACCESS_TOKEN_CB
-  const response = await axios.get(`${url}/send`,{params:{...message,access_token}})
+  // const response = await axios.get(`${url}/send`,{params:{...message,access_token}})
   return true;
 }
 
@@ -497,6 +521,7 @@ const getReport = async (req, res) => {
         Name: '$name',
         PhoneNumber: 1,
         updatedAt: '$chatlog.updatedAt',
+        Status: '$chatlog.messageTrack',
         Venue: '$chatlog.otherMessages.venue',
         Response: '$chatlog.otherMessages.profile'
       }
@@ -539,6 +564,7 @@ const formatDate = (date) => {
         { id: 'updatedAt', title: 'Updated At' },
         { id: 'Venue', title: 'Venue' },
         { id: 'Response', title: 'Response' },
+        { id: 'Status', title: 'Status' },
       ]
     });
 
@@ -601,6 +627,7 @@ async function getReportdataByTime(startDate, endDate, id){
         Name: '$name',
         PhoneNumber: 1,
         updatedAt: '$chatlog.updatedAt',
+        Status: '$chatlog.messageTrack',
         Venue: '$chatlog.otherMessages.venue',
         Response: '$chatlog.otherMessages.profile'
       }
@@ -649,7 +676,6 @@ async function getReportdataByTime(startDate, endDate, id){
     console.error(error);
   }
 };
-
 
 async function createPDF(data, filePath) {
   console.log('data',data)
@@ -762,7 +788,6 @@ async function getReportdataByTime1(startDate, endDate, id){
   return filePath ;
 }
 
-
 function isTimeInRange(startTime, endTime, timezoneOffset = 0) {
   // Get the current date/time in UTC
   const nowUtc = new Date();
@@ -783,6 +808,152 @@ function isTimeInRange(startTime, endTime, timezoneOffset = 0) {
   console.log(now,start,end)
   // Check if the current time falls within the start and end times
   return now >= start && now <= end;
+}
+
+async function getStats(instanceId, startDate, endDate ){
+  let dateFilter = {};
+  if (startDate && endDate) {
+    dateFilter = {
+      updatedAt: {
+        $gte: new Date(startDate),
+        $lt: new Date(endDate)
+      }
+    };
+  }
+  const totalEntries = await ChatLogs.countDocuments({
+    instance_id: instanceId,
+    ...dateFilter
+  });
+
+  const totalCompletedResponses = await ChatLogs.countDocuments({
+    instance_id: instanceId,
+    messageTrack: 'submitted',
+    ...dateFilter
+  });
+
+  const totalIncompleteResponses = await ChatLogs.countDocuments({
+    instance_id: instanceId,
+    messageTrack: { $in: ['venue', 'profile'] },
+    ...dateFilter
+  });
+
+  const contactsWithChatlogs = await Contact.aggregate([
+    {
+      $lookup: {
+        from: 'chatlogs',
+        let: { contactITS: '$ITS' },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $and: [
+                  { $eq: ['$requestedITS', '$$contactITS'] },
+                  { $eq: ['$instance_id', instanceId] },
+                  ...Object.keys(dateFilter).length ? [dateFilter] : []
+                ]
+              }
+            }
+          }
+        ],
+        as: 'chatlog'
+      }
+    },
+    { $match: { 'chatlog.0': { $exists: true } } }
+  ]);
+
+  const totalContacts = await Contact.countDocuments();
+  const totalUnresponsiveContacts = totalContacts - contactsWithChatlogs.length;
+  console.log(totalEntries,
+    totalCompletedResponses,
+    totalIncompleteResponses,
+    totalUnresponsiveContacts)
+  return {
+    totalEntries,
+    totalCompletedResponses,
+    totalIncompleteResponses,
+    totalUnresponsiveContacts
+  };
+}
+
+async function getStats1(instanceId, startDate, endDate) {
+  let dateFilter = {};
+  if (startDate && endDate) {
+    dateFilter = {
+      updatedAt: {
+        $gte: new Date(startDate),
+        $lt: new Date(endDate)
+      }
+    };
+  }
+
+  try {
+    const [statsResult, contactsWithChatlogs, totalContacts] = await Promise.all([
+      ChatLogs.aggregate([
+        {
+          $match: {
+            instance_id: instanceId,
+            ...dateFilter
+          }
+        },
+        {
+          $facet: {
+            totalEntries: [{ $count: "count" }],
+            totalCompletedResponses: [
+              { $match: { messageTrack: 'submitted' } },
+              { $count: "count" }
+            ],
+            totalIncompleteResponses: [
+              { $match: { messageTrack: { $in: ['venue', 'profile'] } }},
+              { $count: "count" }
+            ]
+          }
+        }
+      ]).then(result => result[0]),
+
+      Contact.aggregate([
+        {
+          $lookup: {
+            from: 'chatlogs',
+            let: { contactITS: '$ITS' },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      { $eq: ['$requestedITS', '$$contactITS'] },
+                      { $eq: ['$instance_id', instanceId] },
+                      dateFilter.updatedAt ? { $gte: ['$updatedAt', dateFilter.updatedAt.$gte] } : {},
+                      dateFilter.updatedAt ? { $lt: ['$updatedAt', dateFilter.updatedAt.$lt] } : {}
+                    ].filter(Boolean) // Remove empty objects
+                  }
+                }
+              }
+            ],
+            as: 'chatlog'
+          }
+        },
+        { $match: { 'chatlog.0': { $exists: true } } }
+      ]),
+
+      Contact.countDocuments()
+    ]);
+
+    const totalEntries = statsResult.totalEntries[0] ? statsResult.totalEntries[0].count : 0;
+    const totalCompletedResponses = statsResult.totalCompletedResponses[0] ? statsResult.totalCompletedResponses[0].count : 0;
+    const totalIncompleteResponses = statsResult.totalIncompleteResponses[0] ? statsResult.totalIncompleteResponses[0].count : 0;
+    const totalUnresponsiveContacts = totalContacts - contactsWithChatlogs.length;
+
+
+    return {
+      totalEntries,
+      totalCompletedResponses,
+      totalIncompleteResponses,
+      totalUnresponsiveContacts
+    };
+  } catch (error) {
+    console.error('Error getting stats:', error);
+    throw error; // Ensure errors are thrown to be handled by the calling function
+  }
 }
 
 module.exports = {
