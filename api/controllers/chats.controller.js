@@ -191,9 +191,8 @@ const recieveMessages = async (req, res)=>{
         }
         const fileName = await getReportdataByTime(start,end, messageObject?.instance_id)
         // const fileName = 'http://5.189.156.200:84/uploads/reports/Report-1716394369435.csv'
-        console.log(fileName)
         sendMessageObj.filename = fileName.split('/').pop();
-        sendMessageObj.media_url= process.cwd()+fileName;
+        sendMessageObj.media_url= process.env.IMAGE_URL+fileName;
         sendMessageObj.type = 'media';
         const response =  await sendMessageFunc({...sendMessageObj, message:'Download report'});
         return res.send(true);
@@ -497,7 +496,7 @@ const getReport = async (req, res) => {
         ITS: '$ITS',
         Name: '$name',
         PhoneNumber: 1,
-        updatedAt: { $dateToString: { format: "%d %m %Y", date: '$chatlog.updatedAt' } },
+        updatedAt: '$chatlog.updatedAt',
         Venue: '$chatlog.otherMessages.venue',
         Response: '$chatlog.otherMessages.profile'
       }
@@ -505,10 +504,30 @@ const getReport = async (req, res) => {
   ];
 
   try {
+
+const formatDate = (date) => {
+      if (!date || isNaN(new Date(date).getTime())) {
+        return ''; // Return blank if date is invalid
+      }
+      const options = { 
+        year: 'numeric', 
+        month: '2-digit', 
+        day: '2-digit', 
+        hour: '2-digit', 
+        minute: '2-digit', 
+        hour12: true 
+      };
+      return new Date(date).toLocaleString('en-US', options).replace(',', '');
+    };
+
     let data = await Contact.aggregate(query);
-    data = data.map(ele=>({...ele,Venue:getNames('venue', ele?.Venue),
-      Response: getNames('profile', ele?.Response)
+    data = data.map(ele=>({
+      ...ele,
+      'updatedAt': formatDate(ele.updatedAt),
+      Venue: getNames('venue', ele?.Venue),
+      Response: getNames('profile', ele?.Response),
     }))
+
     const fileName = `Report-${Date.now()}.csv`
     const filePath = `uploads/reports/${fileName}`;
     const csvWriter = createCsvWriter({
@@ -523,7 +542,6 @@ const getReport = async (req, res) => {
       ]
     });
 
-    console.log('data',data)
     await csvWriter.writeRecords(data);
 
     res.setHeader('Content-Type', 'text/csv');
@@ -562,8 +580,6 @@ async function getReportdataByTime(startDate, endDate, id){
                 $and: [
                   { $eq: ['$requestedITS', '$$contactITS'] },
                   { $eq: ['$instance_id', id] },
-                  { $gte: ['$updatedAt', startDate] },
-                  { $lt: ['$updatedAt', endDate] }
                 ]
               }
             }
@@ -584,7 +600,7 @@ async function getReportdataByTime(startDate, endDate, id){
         ITS: '$ITS',
         Name: '$name',
         PhoneNumber: 1,
-        updatedAt: { $dateToString: { format: "%d %m %Y", date: '$chatlog.updatedAt' } },
+        updatedAt: '$chatlog.updatedAt',
         Venue: '$chatlog.otherMessages.venue',
         Response: '$chatlog.otherMessages.profile'
       }
@@ -592,14 +608,42 @@ async function getReportdataByTime(startDate, endDate, id){
   ];
 
   try {
+
+    const formatDate = (date) => {
+      if (!date || isNaN(new Date(date).getTime())) {
+        return ''; // Return blank if date is invalid
+      }
+      const options = { 
+        year: 'numeric', 
+        month: '2-digit', 
+        day: '2-digit', 
+        hour: '2-digit', 
+        minute: '2-digit', 
+        hour12: true 
+      };
+      return new Date(date).toLocaleString('en-US', options).replace(',', '');
+    };
+
     let data = await Contact.aggregate(query);
-    data = data.map(ele=>({...ele,Venue:getNames('venue', ele?.Venue),
-      Response: getNames('profile', ele?.Response)
+    data = data.map(ele=>({
+      Name: ele.Name,
+      PhoneNumber: ele.PhoneNumber,
+      ITS: ele.ITS,
+      'Updated At': formatDate(ele.updatedAt),
+      Venue: getNames('venue', ele?.Venue),
+      Response: getNames('profile', ele?.Response),
     }))
 
-    const pdfFilePath = `/uploads/reports/Report-${Date.now()}.pdf`;
-    await createPDF(data, pdfFilePath);
-    return pdfFilePath;
+    const fileName = `Report-${Date.now()}.xlsx`
+    const filePath = `uploads/reports/${fileName}`;
+    const ws = xlsx.utils.json_to_sheet(data);
+    const wb = xlsx.utils.book_new();
+    xlsx.utils.book_append_sheet(wb, ws, 'Report');
+    xlsx.writeFile(wb, filePath);
+  
+    console.log(`XLSX file created successfully at ${filePath}`);
+    
+    return filePath;
 
   } catch (error) {
     console.error(error);
