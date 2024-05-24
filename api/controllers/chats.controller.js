@@ -436,7 +436,7 @@ const sendMessageFunc = async (message)=>{
   console.log(message)
   const url = process.env.LOGIN_CB_API
   const access_token = process.env.ACCESS_TOKEN_CB
-  // const response = await axios.get(`${url}/send`,{params:{...message,access_token}})
+  const response = await axios.get(`${url}/send`,{params:{...message,access_token}})
   return true;
 }
 
@@ -897,6 +897,12 @@ async function getStats1(instanceId, startDate, endDate) {
           }
         },
         {
+          $group: {
+            _id: '$requestedITS',
+            latestLog: { $last: '$$ROOT' }
+          }
+        },
+        {
           $facet: {
             totalEntries: [{ $count: "count" }],
             totalCompletedResponses: [
@@ -915,7 +921,7 @@ async function getStats1(instanceId, startDate, endDate) {
         {
           $group: {
             _id: '$ITS',
-            uniqueContacts: { $first: '$$ROOT' } // This will merge duplicate contacts based on ITS
+            uniqueContacts: { $first: '$$ROOT' }
           }
         },
         {
