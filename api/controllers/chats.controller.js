@@ -212,7 +212,7 @@ const recieveMessages = async (req, res)=>{
         replyMessage += '\n\n';
         replyMessage += `\n● Start of Campaign *${formattedStart}*`;
         replyMessage += `\n● End of Campaign *${formattedEnd}*`;
-        replyMessage += `\n● Total nos of entries *${replyObj?.totalEntries}*`;
+        replyMessage += `\n● Total nos of entries *${replyObj?.totalContacts}*`;
         replyMessage += `\n● Total nos updated responses *${replyObj?.totalCompletedResponses}*`;
         replyMessage += `\n● Total nos of incomplete responses *${replyObj?.totalIncompleteResponses}*`;
         replyMessage += `\n● Total nos of unresponsive *${replyObj?.totalUnresponsiveContacts}*`;
@@ -436,7 +436,7 @@ const sendMessageFunc = async (message)=>{
   console.log(message)
   const url = process.env.LOGIN_CB_API
   const access_token = process.env.ACCESS_TOKEN_CB
-  const response = await axios.get(`${url}/send`,{params:{...message,access_token}})
+  // const response = await axios.get(`${url}/send`,{params:{...message,access_token}})
   return true;
 }
 
@@ -658,6 +658,7 @@ async function getReportdataByTime(startDate, endDate, id){
       ITS: ele.ITS,
       'Updated At': formatDate(ele.updatedAt),
       Venue: getNames('venue', ele?.Venue),
+      Status: ele.Status,
       Response: getNames('profile', ele?.Response),
     }))
 
@@ -887,7 +888,7 @@ async function getStats1(instanceId, startDate, endDate) {
   }
 
   try {
-    const [statsResult, contactsWithChatlogs, totalContacts] = await Promise.all([
+    const [chatLogsStats, uniqueContacts, totalContacts] = await Promise.all([
       ChatLogs.aggregate([
         {
           $match: {
@@ -912,9 +913,15 @@ async function getStats1(instanceId, startDate, endDate) {
 
       Contact.aggregate([
         {
+          $group: {
+            _id: '$ITS',
+            uniqueContacts: { $first: '$$ROOT' } // This will merge duplicate contacts based on ITS
+          }
+        },
+        {
           $lookup: {
             from: 'chatlogs',
-            let: { contactITS: '$ITS' },
+            let: { contactITS: '$_id' },
             pipeline: [
               {
                 $match: {
@@ -935,17 +942,31 @@ async function getStats1(instanceId, startDate, endDate) {
         { $match: { 'chatlog.0': { $exists: true } } }
       ]),
 
-      Contact.countDocuments()
+      Contact.aggregate([
+        {
+          $group: {
+            _id: '$ITS'
+          }
+        },
+        {
+          $count: 'totalContacts'
+        }
+      ]).then(result => (result[0] ? result[0].totalContacts : 0))
     ]);
 
-    const totalEntries = statsResult.totalEntries[0] ? statsResult.totalEntries[0].count : 0;
-    const totalCompletedResponses = statsResult.totalCompletedResponses[0] ? statsResult.totalCompletedResponses[0].count : 0;
-    const totalIncompleteResponses = statsResult.totalIncompleteResponses[0] ? statsResult.totalIncompleteResponses[0].count : 0;
-    const totalUnresponsiveContacts = totalContacts - contactsWithChatlogs.length;
+    const totalEntries = chatLogsStats.totalEntries[0] ? chatLogsStats.totalEntries[0].count : 0;
+    const totalCompletedResponses = chatLogsStats.totalCompletedResponses[0] ? chatLogsStats.totalCompletedResponses[0].count : 0;
+    const totalIncompleteResponses = chatLogsStats.totalIncompleteResponses[0] ? chatLogsStats.totalIncompleteResponses[0].count : 0;
+    const totalUnresponsiveContacts = totalContacts - uniqueContacts.length;
 
+    console.log(
+      totalContacts, 
+      totalCompletedResponses,
+      totalIncompleteResponses,
+      totalUnresponsiveContacts)
 
     return {
-      totalEntries,
+      totalContacts,
       totalCompletedResponses,
       totalIncompleteResponses,
       totalUnresponsiveContacts
